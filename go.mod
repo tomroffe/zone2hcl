@@ -1,4 +1,4 @@
-module github.com/tomroffe/r53-to-tf
+module github.com/tomroffe/zone2hcl
 
 go 1.18
 
