@@ -35,71 +35,115 @@ func listZones(svc *route53.Client) {
 	for _, zone := range resp.HostedZones {
 		zoneHCL := generateZone(&zone)
 		fmt.Printf("%s", zoneHCL.Bytes())
+		listResourceRecord(svc, &zone)
+	}
+
+}
+
+func listResourceRecord(svc *route53.Client, zone *types.HostedZone) {
+	resp, err := svc.ListResourceRecordSets(context.TODO(), &route53.ListResourceRecordSetsInput{
+		HostedZoneId: zone.Id,
+	})
+
+	if err != nil {
+		log.Fatalf("Unable to fetch zone resource record list")
+	}
+
+	for _, recordSet := range resp.ResourceRecordSets {
+		recordHCL := generateRecord(zone, &recordSet)
+		fmt.Printf("%s", recordHCL.Bytes())
 	}
 }
 
 func generateZone(zone *types.HostedZone) *hclwrite.File {
 	// Create File and Root Body
-	f, rootBody := createFileAndRootBody()
-	// Remove trailing .(dot), Replace remaining with _(underscore)
-	domainName := strings.TrimRight(*zone.Name, ".")
-	resourceName := strings.ReplaceAll(domainName, ".", "_")
+	file, rootBody := createFileAndRootBody()
+	// Zone FQDN and Zone Resource Name
+	fqdn, resourceName := formatName(*zone.Name)
+
 	// Create Resource
-	zoneBlock := createResourceBlock(rootBody, "aws_route53_zone", resourceName)
+	zoneBlock := rootBody.AppendNewBlock("resource", []string{"aws_route53_zone", resourceName})
 	zoneBody := zoneBlock.Body()
-	zoneBody.SetAttributeValue("name", cty.StringVal(domainName))
+	zoneBody.SetAttributeValue("name", cty.StringVal(fqdn))
+
 	// Add New Line To Root Body After Resource Addition
 	rootBody.AppendNewline()
-	return f
+	return file
 }
 
-func generateRecord(zone *types.HostedZone, resource *types.ResourceRecordSet) *hclwrite.File {
+func generateRecord(zone *types.HostedZone, resourceSet *types.ResourceRecordSet) *hclwrite.File {
 	// Create File and Root Body
-	f, rootBody := createFileAndRootBody()
-	// Remove trailing .(dot), Replace remaining with _(underscore)
-	domainName := strings.TrimRight(*resource.Name, ".")
-	recordName := strings.ReplaceAll(domainName, ".", "_")
-	resourceRecordBlock := createResourceBlock(rootBody, "aws_route53_record", recordName)
+	file, rootBody := createFileAndRootBody()
+	// ResourceRecord FQDN and ResourceRecord Resource Name
+	fqdn, resourceName := formatName(*resourceSet.Name)
+	// ResourceRecord Parent/Root Zone FQDN and ResourceRecord Parent/Root Zone Resource Name
+	_, zoneResourceName := formatName(*zone.Name)
+
+	resourceName = fmt.Sprintf("%s_%s", strings.ToLower(string(resourceSet.Type)), resourceName)
+	resourceRecordBlock := rootBody.AppendNewBlock("resource", []string{"aws_route53_record", resourceName})
 	resourceRecordBody := resourceRecordBlock.Body()
 
-	parentDomain := strings.TrimRight(*zone.Name, ".")
-	resourceName := strings.ReplaceAll(parentDomain, ".", "_")
-	zoneId := fmt.Sprintf("aws_route53_zone.%s.zone", resourceName)
-	resourceToken := hclwrite.Tokens{
+	zoneId := fmt.Sprintf("aws_route53_zone.%s.zone", zoneResourceName)
+	resourceRecordBody.SetAttributeRaw("zone_id", hclwrite.Tokens{
 		{
 			Type:  hclsyntax.TokenIdent,
 			Bytes: []byte(zoneId),
 		},
-	}
-	resourceRecordBody.SetAttributeRaw("zone_id", resourceToken)
-	resourceRecordBody.SetAttributeValue("name", cty.StringVal(domainName))
-	resourceRecordBody.SetAttributeValue("type", cty.StringVal(string(resource.Type)))
+	})
+	resourceRecordBody.SetAttributeValue("name", cty.StringVal(fqdn))
+	resourceRecordBody.SetAttributeValue("type", cty.StringVal(string(resourceSet.Type)))
 
-	if len(resource.ResourceRecords) > 0 {
-		resourceRecordBody.SetAttributeValue("ttl", cty.NumberIntVal(*resource.TTL))
-		// records := []string{}
-		// for _, record := range resource.ResourceRecords {
-		// 	attr := cty.ListVal([]cty.Value{cty.StringVal(""), cty.StringVal("")}) 
-		// 	records = append(records, *record.Value)
-		// }
+	if len(resourceSet.ResourceRecords) > 0 {
+		resourceRecordBody.SetAttributeValue("ttl", cty.NumberIntVal(*resourceSet.TTL))
+		records := []cty.Value{}
+		for _, record := range resourceSet.ResourceRecords {
+			records = append(records, cty.StringVal(*record.Value))
+		}
 		resourceRecordBody.SetAttributeValue("records",
-			cty.ListVal([]cty.Value{cty.StringVal("123"), cty.StringVal("abc")}))
+			cty.ListVal(records))
 	} else {
-		fmt.Println("Target Alias: ", *resource.AliasTarget.DNSName)
-		fmt.Println("Zone ID: ", *resource.AliasTarget.HostedZoneId)
+		resourceRecordBody.AppendNewline()
+
+		aliasBlock := resourceRecordBody.AppendNewBlock("alias", nil)
+		aliasBody := aliasBlock.Body()
+		aliasZoneVar := fmt.Sprintf("var.%s_alias_zone", resourceName)
+		aliasBody.SetAttributeRaw("name", hclwrite.Tokens{
+			{
+				Type:  hclsyntax.TokenIdent,
+				Bytes: []byte(aliasZoneVar),
+			},
+		})
+		aliasZoneIdVar := fmt.Sprintf("var.%s_alias_zone_id", resourceName)
+		aliasBody.SetAttributeRaw("zone_id", hclwrite.Tokens{
+			{
+				Type:  hclsyntax.TokenIdent,
+				Bytes: []byte(aliasZoneIdVar),
+			},
+		})
+		aliasZoneEvalTargetHealthVar := fmt.Sprintf("var.%s_alias_healthcheck", resourceName)
+		aliasBody.SetAttributeRaw("evaluate_target_health", hclwrite.Tokens{
+			{
+				Type:  hclsyntax.TokenIdent,
+				Bytes: []byte(aliasZoneEvalTargetHealthVar),
+			},
+		})
+		// fmt.Println("Target Alias: ", *resource.AliasTarget.DNSName)
+		// fmt.Println("Zone ID: ", *resource.AliasTarget.HostedZoneId)
 	}
 
-	return f
+	return file
+}
+
+func formatName(name string) (string, string) {
+	// Strip the trailing dot
+	fqdn := strings.TrimRight(name, ".")
+	// Replace '.' with '_'. Format for TF HCL Unique Resource Name
+	resourceName := strings.ReplaceAll(fqdn, ".", "_")
+	return fqdn, resourceName
 }
 
 func createFileAndRootBody() (*hclwrite.File, *hclwrite.Body) {
 	f := hclwrite.NewEmptyFile()
 	rootBody := f.Body()
 	return f, rootBody
-}
-
-func createResourceBlock(rootBody *hclwrite.Body, resourceType string, resourceName string) *hclwrite.Block {
-	// Remove trailing .(dot), Replace remaining with _(underscore)
-	zoneBlock := rootBody.AppendNewBlock("resource", []string{resourceType, resourceName})
-	return zoneBlock
 }
