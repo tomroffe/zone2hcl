@@ -25,14 +25,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/spf13/cobra"
 	"github.com/tomroffe/zone2hcl/pkg/list"
+	"github.com/tomroffe/zone2hcl/pkg/utils"
 )
 
 // recordsCmd represents the records command
 var recordsCmd = &cobra.Command{
-	Use:   "records FQDN",
+	Use:   "records [zone name]",
 	Short: "Generate a zone's records set Terraform resources",
 	Long:  ``,
-	Args:  cobra.ExactArgs(1),
+	Args:  utils.VaildateDomain,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg, err := config.LoadDefaultConfig(context.TODO())
 

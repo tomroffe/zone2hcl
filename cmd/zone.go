@@ -26,13 +26,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/spf13/cobra"
 	"github.com/tomroffe/zone2hcl/pkg/list"
+	"github.com/tomroffe/zone2hcl/pkg/utils"
 )
 
 // zoneCmd represents the zone command
 var zoneCmd = &cobra.Command{
-	Use:   "zone",
+	Use:   "zone [zone name]",
 	Short: "Generate hosted zone Terraform resource",
-	Args:  cobra.ExactArgs(1),
+	Args:  utils.VaildateDomain,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg, err := config.LoadDefaultConfig(context.TODO())
 
