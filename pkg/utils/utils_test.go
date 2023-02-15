@@ -28,6 +28,7 @@ func TestFormatName(t *testing.T) {
 	}{
 		{"example.com.", "example.com", "example_com"},
 		{"www.example.co.uk.", "www.example.co.uk", "www_example_co_uk"},
+		{"an.another.example.io.", "an.another.example.io", "an_another_example_io"},
 	}
 
 	for _, tt := range tests {
@@ -38,6 +39,39 @@ func TestFormatName(t *testing.T) {
 			}
 			if ansB != tt.want_b {
 				t.Errorf("Got %s, wanted %s", ansB, tt.want_b)
+			}
+		})
+	}
+}
+
+// func TestCreateFileAndRootBody(t *testing.T) {
+
+// }
+
+func TestIsDomain(t *testing.T) {
+	var tests = []struct {
+		a      string
+		want_a bool
+	}{
+		{"example.com.", true},
+		{"www.example.co.uk.", true},
+		{"an.another.example.io.", true},
+		{"this is some text", false},
+		{"0-example.com.br", true},
+		{"xn--example.com", true},
+		{"xn--diseolatinoamericano-76b.com", true},
+		{"xn--d1ai6ai.xn--p1ai", true},
+		{"xn--rksmrgs-5wao1o.josefsson.org", true},
+		{"xn--99zt52a.w3.example.ac.jp", true},
+		{"this.is.a.test.com.au", true},
+		{"xn--fiqs8s.asia", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.a, func(t *testing.T) {
+			ansA := IsDomain(tt.a)
+			if ansA != tt.want_a {
+				t.Errorf("Got %t, wanted %t", ansA, tt.want_a)
 			}
 		})
 	}
