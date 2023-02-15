@@ -18,9 +18,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package utils
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/spf13/cobra"
 )
 
 func FormatName(name string) (string, string) {
@@ -35,4 +38,27 @@ func CreateFileAndRootBody() (*hclwrite.File, *hclwrite.Body) {
 	f := hclwrite.NewEmptyFile()
 	rootBody := f.Body()
 	return f, rootBody
+}
+
+func IsDomain(domainname string) bool {
+	re, err := regexp.Compile(`(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]`)
+	if err != nil {
+		return false
+	}
+
+	if re.MatchString(domainname) {
+		return true
+	} else {
+		return false
+	}
+}
+
+func VaildateDomain(cmd *cobra.Command, args []string) error {
+	if err := cobra.MinimumNArgs(1)(cmd, args); err != nil {
+		return err
+	}
+	if IsDomain(args[0]) {
+		return nil
+	}
+	return fmt.Errorf("domain name is invalid: %s", args[0])
 }
