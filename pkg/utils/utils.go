@@ -54,11 +54,8 @@ func IsDomain(domainname string) bool {
 }
 
 func VaildateDomain(cmd *cobra.Command, args []string) error {
-	if err := cobra.MinimumNArgs(1)(cmd, args); err != nil {
-		return err
-	}
 	if IsDomain(args[0]) {
 		return nil
 	}
-	return fmt.Errorf("domain name is invalid: %s", args[0])
+	return fmt.Errorf("domain name is invalid %s", args[0])
 }
