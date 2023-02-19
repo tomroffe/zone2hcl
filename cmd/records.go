@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/spf13/cobra"
-	"github.com/tomroffe/zone2hcl/pkg/list"
+	"github.com/tomroffe/zone2hcl/pkg/fetch"
 	"github.com/tomroffe/zone2hcl/pkg/utils"
 )
 
@@ -33,18 +33,21 @@ var recordsCmd = &cobra.Command{
 	Use:   "records [zone name]",
 	Short: "Generate a zone's records set Terraform resources",
 	Long:  ``,
-	Args:  utils.VaildateDomain,
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := config.LoadDefaultConfig(context.TODO())
+	Args:  cobra.MatchAll(cobra.ExactArgs(1), utils.VaildateDomain),
+	Run:   RecordsCmd,
+}
 
-		if err != nil {
-			log.Fatalf("Unable to load config.\n%s", err)
-		}
+func RecordsCmd(cmd *cobra.Command, args []string) {
+	ctx := context.TODO()
+	cfg, err := config.LoadDefaultConfig(ctx)
 
-		svc := route53.NewFromConfig(cfg)
-		zone := list.GetHostedZoneID(svc, args[0])
-		list.ListResourceRecords(svc, zone)
-	},
+	if err != nil {
+		log.Fatalf("Unable to load config.\n%s", err)
+	}
+
+	svc := route53.NewFromConfig(cfg)
+	zone := fetch.GetHostedZoneID(ctx, svc, args[0])
+	fetch.ListResourceRecords(ctx, svc, zone)
 }
 
 func init() {

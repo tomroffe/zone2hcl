@@ -25,7 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/spf13/cobra"
-	"github.com/tomroffe/zone2hcl/pkg/list"
+	"github.com/tomroffe/zone2hcl/pkg/fetch"
 	"github.com/tomroffe/zone2hcl/pkg/utils"
 )
 
@@ -33,21 +33,24 @@ import (
 var zoneCmd = &cobra.Command{
 	Use:   "zone [zone name]",
 	Short: "Generate hosted zone Terraform resource",
-	Args:  utils.VaildateDomain,
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := config.LoadDefaultConfig(context.TODO())
+	Args:  cobra.MatchAll(cobra.ExactArgs(1), utils.VaildateDomain),
+	Run:   ZoneCmd,
+}
 
-		if err != nil {
-			log.Fatalf("Unable to load config")
-		}
+func ZoneCmd(cmd *cobra.Command, args []string) {
+	ctx := context.TODO()
+	cfg, err := config.LoadDefaultConfig(ctx)
 
-		svc := route53.NewFromConfig(cfg)
-		zoneInput := route53.ListHostedZonesByNameInput{
-			DNSName: &args[0],
-		}
-		listResources, _ := cmd.Flags().GetBool("records")
-		list.ListZone(svc, &zoneInput, listResources)
-	},
+	if err != nil {
+		log.Fatalf("Unable to load config")
+	}
+
+	svc := route53.NewFromConfig(cfg)
+	zoneInput := route53.ListHostedZonesByNameInput{
+		DNSName: &args[0],
+	}
+	// listResources, _ := cmd.Flags().GetBool("records")
+	fetch.ListZone(ctx, svc, &zoneInput)
 }
 
 func init() {

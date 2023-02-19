@@ -26,7 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/tomroffe/zone2hcl/pkg/list"
+	"github.com/tomroffe/zone2hcl/pkg/fetch"
 )
 
 // zonesCmd represents the zones command
@@ -34,17 +34,20 @@ var zonesCmd = &cobra.Command{
 	Use:   "zones",
 	Short: "Generate hosted zones Terraform resource",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := config.LoadDefaultConfig(context.TODO())
+	Run:   ZonesCmd,
+}
 
-		if err != nil {
-			log.Fatalf("Unable to load config")
-		}
+func ZonesCmd(cmd *cobra.Command, args []string) {
+	ctx := context.TODO()
+	cfg, err := config.LoadDefaultConfig(ctx)
 
-		svc := route53.NewFromConfig(cfg)
-		listResources, _ := cmd.Flags().GetBool("records")
-		list.ListZones(svc, listResources)
-	},
+	if err != nil {
+		log.Fatalf("Unable to load config")
+	}
+
+	svc := route53.NewFromConfig(cfg)
+	// listResources, _ := cmd.Flags().GetBool("records")
+	fetch.ListZones(ctx, svc)
 }
 
 func init() {
