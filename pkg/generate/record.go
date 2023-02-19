@@ -28,22 +28,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func GenerateZone(zone *types.HostedZone) *hclwrite.File {
-	// Create File and Root Body
-	file, rootBody := utils.CreateFileAndRootBody()
-	// Zone FQDN and Zone Resource Name
-	fqdn, resourceName := utils.FormatName(*zone.Name)
-
-	// Create Resource
-	zoneBlock := rootBody.AppendNewBlock("resource", []string{"aws_route53_zone", resourceName})
-	zoneBody := zoneBlock.Body()
-	zoneBody.SetAttributeValue("name", cty.StringVal(fqdn))
-
-	// Add New Line To Root Body After Resource Addition
-	rootBody.AppendNewline()
-	return file
-}
-
 func GenerateRecord(zone *types.HostedZone, resourceSet *types.ResourceRecordSet) *hclwrite.File {
 	// Create File and Root Body
 	file, rootBody := utils.CreateFileAndRootBody()
