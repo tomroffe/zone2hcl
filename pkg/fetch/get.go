@@ -25,7 +25,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
 
-func GetHostedZoneID(ctx context.Context, svc *route53.Client, zoneFQDN string) (zone *types.HostedZone) {
+type Route53API interface {
+	ListHostedZonesByName(ctx context.Context, params *route53.ListHostedZonesByNameInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesByNameOutput, error)
+}
+
+func GetHostedZoneID(ctx context.Context, svc Route53API, zoneFQDN string) (zone *types.HostedZone) {
 	zoneInput := route53.ListHostedZonesByNameInput{
 		DNSName: &zoneFQDN,
 	}
