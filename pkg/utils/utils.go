@@ -19,11 +19,13 @@ package utils
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func FormatName(name string) (string, string) {
@@ -40,21 +42,28 @@ func CreateFileAndRootBody() (*hclwrite.File, *hclwrite.Body) {
 	return f, rootBody
 }
 
-func IsDomain(domainname string) bool {
-	re, err := regexp.Compile(`(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]`)
+func IsDomain(domainname string) (bool, error) {
+	var regex string = viper.GetString("DomainNameValidationFilterRegEx")
+	log.Printf("Regex: %s", regex)
+	re, err := regexp.Compile(regex)
+
 	if err != nil {
-		return false
+		return false, fmt.Errorf("bad regex. compilation error: %s", regex)
 	}
 
 	if re.MatchString(domainname) {
-		return true
+		return true, nil
 	} else {
-		return false
+		return false, nil
 	}
 }
 
 func VaildateDomain(cmd *cobra.Command, args []string) error {
-	if IsDomain(args[0]) {
+	result, err := IsDomain(args[0])
+	if err != nil {
+		return err
+	}
+	if result {
 		return nil
 	}
 	return fmt.Errorf("domain name is invalid %s", args[0])

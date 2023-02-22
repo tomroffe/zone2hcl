@@ -67,6 +67,7 @@ func initConfig() {
 	viper.SetEnvPrefix("Z2T")
 	viper.AutomaticEnv() // read in environment variables that match
 
+	viper.Set("DomainNameValidationFilterRegEx", `(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]`)
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())

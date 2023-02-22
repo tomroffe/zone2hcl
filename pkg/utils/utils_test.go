@@ -23,6 +23,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,6 +58,7 @@ func TestCreateFileAndRootBody(t *testing.T) {
 }
 
 func TestIsDomain(t *testing.T) {
+	viper.Set("DomainNameValidationFilterRegEx", `(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]`)
 	var tests = []struct {
 		a      string
 		want_a bool
@@ -73,16 +75,28 @@ func TestIsDomain(t *testing.T) {
 		{"xn--99zt52a.w3.example.ac.jp", true},
 		{"this.is.a.test.com.au", true},
 		{"xn--fiqs8s.asia", true},
+		{"Another Test", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.a, func(t *testing.T) {
-			ansA := IsDomain(tt.a)
+			ansA, err := IsDomain(tt.a)
 			if ansA != tt.want_a {
 				t.Errorf("Got %t, wanted %t", ansA, tt.want_a)
 			}
+			assert.Nil(t, err)
 		})
 	}
+}
+
+func TestIsDomainRegexNotComplining(t *testing.T) {
+	// pass a non-compilable regex to viper for IsDomain function to pickup
+	viper.Set("DomainNameValidationFilterRegEx", `*$)(`)
+
+	t.Run("BadRegex", func(t *testing.T) {
+		_, err := IsDomain("test")
+		assert.Error(t, err)
+	})
 }
 
 func emptyRun(*cobra.Command, []string) {}
@@ -99,44 +113,53 @@ func executeCommand(root *cobra.Command, args ...string) (output string, err err
 }
 
 func TestValidateDomain(t *testing.T) {
+	var good_regex string = `(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]`
+	var bad_regex string = `*$)(`
 	var tests = []struct {
 		name    string
 		command *cobra.Command
 		args    []string
 		want    string
 		pass    bool
+		regex   string
 	}{
 		{"valid_domain", &cobra.Command{
 			Use:  "testing",
 			Args: cobra.MatchAll(cobra.ExactArgs(1), VaildateDomain),
 			Run:  emptyRun,
-		}, []string{"testing.com"}, "", true},
+		}, []string{"testing.com"}, "", true, good_regex},
 		{"invalid_domain", &cobra.Command{
 			Use:  "testing",
 			Args: cobra.MatchAll(cobra.ExactArgs(1), VaildateDomain),
 			Run:  emptyRun,
-		}, []string{"testing"}, "Error: domain name is invalid testing\nUsage:\n  testing [flags]\n\nFlags:\n  -h, --help   help for testing\n\n", false},
+		}, []string{"testing"}, "Error: domain name is invalid testing", false, good_regex},
 		{"too_many_args", &cobra.Command{
 			Use:  "testing",
 			Args: cobra.MatchAll(cobra.ExactArgs(1), VaildateDomain),
 			Run:  emptyRun,
-		}, []string{"testing", "testing2"}, "Error: accepts 1 arg(s), received 2\nUsage:\n  testing [flags]\n\nFlags:\n  -h, --help   help for testing\n\n", false},
+		}, []string{"testing", "testing2"}, "Error: accepts 1 arg(s), received 2", false, good_regex},
 		{"no_args", &cobra.Command{
 			Use:  "testing",
 			Args: cobra.MatchAll(cobra.ExactArgs(1), VaildateDomain),
 			Run:  emptyRun,
-		}, []string{""}, "Error: domain name is invalid \nUsage:\n  testing [flags]\n\nFlags:\n  -h, --help   help for testing\n\n", false},
+		}, []string{""}, "Error: domain name is invalid", false, good_regex},
+		{"bad_domain_filter_validation_regex", &cobra.Command{
+			Use:  "testing",
+			Args: cobra.MatchAll(cobra.ExactArgs(1), VaildateDomain),
+			Run:  emptyRun,
+		}, []string{""}, "Error: bad regex. compilation error: *$)(", false, bad_regex},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			viper.Set("DomainNameValidationFilterRegEx", tt.regex)
 			output, err := executeCommand(tt.command, tt.args...)
 
 			if tt.pass {
 				assert.EqualValues(t, tt.want, output)
 			} else {
 				assert.Error(t, err)
-				assert.EqualValues(t, tt.want, output)
+				assert.Contains(t, output, tt.want)
 			}
 		})
 	}
